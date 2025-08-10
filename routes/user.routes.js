@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const userModel = require("../models/user.model");
-const { body, validationResult, cookie } = require("express-validator");
+const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
+const authMiddleware = require("../middleware/auth");
 
 router.post(
   "/register",
@@ -80,5 +80,11 @@ router.post(
       });
   }
 );
+
+router.get("/logout", authMiddleware, async (req, res) =>{
+  res.clearCookie("token")
+  res.status(200).json({ message: "Logged out successfully" })
+
+})
 
 module.exports = router;
