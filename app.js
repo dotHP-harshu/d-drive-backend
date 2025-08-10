@@ -4,10 +4,18 @@ const userRouter = require('./routes/user.routes')
 const fileRouter = require('./routes/file.routes')
 require("dotenv").config();
 const cookieParser = require("cookie-parser")
+const cors = require("cors")
 
 const connectDb  = require("./config/db")
 connectDb()
 
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // must be explicit, not "*"
+    credentials: true,
+  })
+);
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({extended:true}))
