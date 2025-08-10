@@ -7,6 +7,7 @@ const fileModel = require("../models/files.model");
 const userModel = require("../models/user.model");
 const supabase = require("../config/supabase-client");
 
+// upload file
 router.post(
   "/upload",
   authMiddleware,
@@ -18,7 +19,7 @@ router.post(
     try {
       const { data, error } = await supabase.storage
         .from("d-drive")
-        .upload(file.originalname, file.buffer, { contentType: file.mimetype });
+        .upload(`${userId}/${file.originalname}`, file.buffer, { contentType: file.mimetype });
 
       if (error) {
         return res.status(400).json({ message: error.message });
@@ -26,7 +27,6 @@ router.post(
       const newFile = await fileModel.create({
         fileName: file.originalname,
         userId,
-        path: data.fullPath,
         storageId: data.id,
       });
 
@@ -42,15 +42,17 @@ router.post(
   }
 );
 
+// delete file
 router.delete("/delete/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
+  const { userId } = req.user;
 
   try {
     const file = await fileModel.findById(id);
     if (!file) return res.status(400).json({ message: "file not found." });
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from("d-drive")
-      .remove([file.fileName]);
+      .remove([`${userId}/${file.fileName}`]);
     if (error) {
       return res.status(400).json({ message: error.message });
     }
@@ -61,6 +63,7 @@ router.delete("/delete/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// download file
 router.get("/download/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
   const file = await fileModel.findById(id);
@@ -74,17 +77,22 @@ router.get("/download/:id", authMiddleware, async (req, res) => {
   res.status(200).json({ data, message: "This is download link" });
 });
 
+// get all files
 router.get("/all", authMiddleware, async (req, res) => {
   const { userId } = req.user;
 
-  const files = await fileModel.find({ userId });
+  const {data , error} = await supabase.storage.from("d-drive").list(userId, {sortBy:{column:"name", order:"asc"}})
 
-  res.status(200).json({ files, message: "succesfully" });
+  if(error) return res.status(400).json({ message: error.message });
+
+  res.status(200).json({ data, message: "succesfully" });
 });
 
+// rename file
 router.post("/rename/:id", authMiddleware, async (req, res) => {
   const { newName } = req.body;
   const { id } = req.params;
+  const { userId } = req.user;
 
   const file = await fileModel.findById(id);
 
@@ -94,7 +102,7 @@ router.post("/rename/:id", authMiddleware, async (req, res) => {
   const oldName = file.fileName
   const newFileName = splitted.join(".")
 
-  const {  error } = await supabase.storage.from("d-drive").move(oldName, newFileName);
+  const {  error } = await supabase.storage.from("d-drive").move(`${userId}/${oldName}`, `${userId}/${newFileName}`);
 
   if (error) {
     return res.status(400).json({ message: error.message });
@@ -103,10 +111,6 @@ router.post("/rename/:id", authMiddleware, async (req, res) => {
   file.fileName = newFileName; // update the filename in mongoose
 
   // update the path 
-  
-  const path = file.path.split("/")
-  path[path.length -1] = newFileName
-  file.path = path.join("/")
 
   await file.save();
 
